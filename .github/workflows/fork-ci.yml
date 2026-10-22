@@ -1,0 +1,12 @@
+name: Fork CI
+on: [push]
+jobs:
+  rpc-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config protobuf-compiler clang cmake
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test -p monad-rpc --no-default-features
