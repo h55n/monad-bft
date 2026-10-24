@@ -22,7 +22,7 @@ jobs:
       - name: Wireauth with output
         continue-on-error: true
         run: |
-          RUST_BACKTRACE=1 cargo test -p monad-raptorcast --test wireauth_raptorcast -- --nocapture --test-threads=1 > /tmp/w.log 2>&1
-          echo RC=$?
+          RUST_BACKTRACE=1 cargo test -p monad-raptorcast --test wireauth_raptorcast -- --nocapture --test-threads=1 > /tmp/w.log 2>&1 || true
+          echo done
           grep -n -E "panicked|Error|error:|os error|Operation|Permission|io_uring|ENOMEM|EPERM" /tmp/w.log | head -40
           tail -40 /tmp/w.log
