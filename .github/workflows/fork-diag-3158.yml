@@ -1,27 +1,30 @@
-name: Fork diag 3158 (wireauth failure reason)
+name: Fork full raptorcast tests with memlock raised
 on:
   workflow_dispatch:
   push:
     branches: [ci-diag-3158]
 jobs:
-  diag:
+  full:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
+          fetch-depth: 0
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libclang-dev clang pkg-config libssl-dev protobuf-compiler
-      - name: Default limits, show error text
-        continue-on-error: true
+      - name: Raise memlock for this shell (runner default 8 MiB causes io_uring ENOMEM)
+        run: echo skip
+      - name: Head, all monad-raptorcast tests, no skips
         run: |
-          cargo test -p monad-raptorcast --test wireauth_raptorcast -- --nocapture --test-threads=1 > /tmp/w.log 2>&1 || true
-          grep -m3 -A2 "Failed building the Runtime" /tmp/w.log | cut -c1-300
-          grep -E "^test result" /tmp/w.log
-      - name: Raised memlock, same test
+          sudo prlimit --pid $$ --memlock=unlimited:unlimited
+          echo "memlock=$(ulimit -l)"
+          git log -1 --format=%h
+          cargo test -p monad-raptorcast --all-targets --no-fail-fast 2>&1 | tee /tmp/h.log | grep -E "^test result|FAILED|Running"
+          test ${PIPESTATUS[0]} -eq 0
+      - name: Base, wireauth for comparison
         continue-on-error: true
         run: |
           sudo prlimit --pid $$ --memlock=unlimited:unlimited
-          ulimit -l
-          cargo test -p monad-raptorcast --test wireauth_raptorcast > /tmp/w2.log 2>&1 || true
-          grep -E "^test result|FAILED" /tmp/w2.log
+          git checkout -q 796f2d0 -- monad-raptorcast
+          cargo test -p monad-raptorcast --test wireauth_raptorcast 2>&1 | grep -E "^test result|FAILED"
