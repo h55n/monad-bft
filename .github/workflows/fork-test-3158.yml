@@ -1,0 +1,30 @@
+name: Fork test 3158 (targeted, hosted runner)
+on:
+  push:
+    branches: [ci-fork-3158]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev clang pkg-config libssl-dev protobuf-compiler
+      - name: Toolchains
+        run: |
+          rustup show
+          rustup toolchain install nightly --profile minimal -c rustfmt
+          rustup component add clippy
+      - name: Tests (monad-raptorcast)
+        run: cargo test -p monad-raptorcast 2>&1 | grep -E "^test result|FAILED|panicked|^error" | head -30
+      - name: Nightly rustfmt check (monad-raptorcast)
+        run: cargo +nightly fmt -p monad-raptorcast -- --check 2>&1 | grep -v "^Warning" | head -30; echo "FMT_RC=${PIPESTATUS[0]}"
+      - name: Clippy (monad-raptorcast), head
+        run: cargo clippy -p monad-raptorcast --tests 2>&1 | grep -E "^(warning|error)" | sort | uniq -c | sort -rn | head -20 | tee /tmp/head.clippy; cargo clippy -p monad-raptorcast --tests 2>&1 | grep -cE "^(warning|error)" | sed 's/^/HEAD_CLIPPY_TOTAL=/'
+      - name: Clippy (monad-raptorcast), base
+        run: |
+          git checkout -q HEAD~1 -- monad-raptorcast
+          cargo clippy -p monad-raptorcast --tests 2>&1 | grep -cE "^(warning|error)" | sed 's/^/BASE_CLIPPY_TOTAL=/'
