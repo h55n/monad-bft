@@ -44,8 +44,11 @@ jobs:
         run: git checkout -q HEAD -- monad-raptorcast
       - name: Nightly rustfmt check (must pass)
         run: |
-          set -o pipefail
-          cargo +nightly fmt -p monad-raptorcast -- --check 2>&1 | grep -v "^Warning"
+          cargo +nightly fmt -p monad-raptorcast -- --check > /tmp/f.log 2>&1
+          rc=$?
+          grep -v "^Warning" /tmp/f.log | head -30 || true
+          echo "FMT_RC=$rc"
+          test $rc -eq 0
       - name: Clippy totals head vs base
         run: |
           cargo clippy -p monad-raptorcast --tests 2>&1 | grep -cE "^(warning|error)" | sed 's/^/HEAD_CLIPPY_TOTAL=/' || true
