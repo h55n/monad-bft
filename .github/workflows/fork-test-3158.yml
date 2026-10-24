@@ -18,13 +18,36 @@ jobs:
           rustup show
           rustup toolchain install nightly --profile minimal -c rustfmt
           rustup component add clippy
-      - name: Tests (monad-raptorcast)
-        run: cargo test -p monad-raptorcast 2>&1 | grep -E "^test result|FAILED|panicked|^error" | head -30
-      - name: Nightly rustfmt check (monad-raptorcast)
-        run: cargo +nightly fmt -p monad-raptorcast -- --check 2>&1 | grep -v "^Warning" | head -30; echo "FMT_RC=${PIPESTATUS[0]}"
-      - name: Clippy (monad-raptorcast), head
-        run: cargo clippy -p monad-raptorcast --tests 2>&1 | grep -E "^(warning|error)" | sort | uniq -c | sort -rn | head -20 | tee /tmp/head.clippy; cargo clippy -p monad-raptorcast --tests 2>&1 | grep -cE "^(warning|error)" | sed 's/^/HEAD_CLIPPY_TOTAL=/'
-      - name: Clippy (monad-raptorcast), base
+      - name: Head, lib tests (must pass)
+        run: |
+          set -o pipefail
+          cargo test -p monad-raptorcast --lib 2>&1 | tee /tmp/lib.log | grep -E "^test result|FAILED|panicked|^error"
+      - name: Head, other raptorcast test targets except wireauth (must pass)
+        run: |
+          set -o pipefail
+          cargo test -p monad-raptorcast --tests --doc --no-fail-fast -- --skip test_wireauth_matrix 2>&1 | grep -E "^test result|FAILED|^error|Running"
+      - name: Head, wireauth target (reports rc, does not fail job)
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cargo test -p monad-raptorcast --test wireauth_raptorcast 2>&1 | tee /tmp/hw.log | grep -E "^test result|FAILED|failed building"
+          echo "HEAD_WIREAUTH_RC=${PIPESTATUS[0]}"
+      - name: Base, wireauth target (reports rc, does not fail job)
+        continue-on-error: true
         run: |
           git checkout -q HEAD~2 -- monad-raptorcast
-          cargo clippy -p monad-raptorcast --tests 2>&1 | grep -cE "^(warning|error)" | sed 's/^/BASE_CLIPPY_TOTAL=/'
+          git status --short | head -5
+          set -o pipefail
+          cargo test -p monad-raptorcast --test wireauth_raptorcast 2>&1 | tee /tmp/bw.log | grep -E "^test result|FAILED|failed building"
+          echo "BASE_WIREAUTH_RC=${PIPESTATUS[0]}"
+      - name: Restore head sources
+        run: git checkout -q HEAD -- monad-raptorcast
+      - name: Nightly rustfmt check (must pass)
+        run: |
+          set -o pipefail
+          cargo +nightly fmt -p monad-raptorcast -- --check 2>&1 | grep -v "^Warning"
+      - name: Clippy totals head vs base
+        run: |
+          cargo clippy -p monad-raptorcast --tests 2>&1 | grep -cE "^(warning|error)" | sed 's/^/HEAD_CLIPPY_TOTAL=/' || true
+          git checkout -q HEAD~2 -- monad-raptorcast
+          cargo clippy -p monad-raptorcast --tests 2>&1 | grep -cE "^(warning|error)" | sed 's/^/BASE_CLIPPY_TOTAL=/' || true
