@@ -1,0 +1,28 @@
+name: Fork diag 3158 (wireauth failure reason)
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci-diag-3158]
+jobs:
+  diag:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Kernel and io_uring facts
+        run: |
+          uname -a
+          cat /proc/sys/kernel/io_uring_disabled || true
+          cat /proc/sys/kernel/io_uring_group || true
+          ulimit -a | grep -E "locked|open files"
+          id
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev clang pkg-config libssl-dev protobuf-compiler
+      - name: Wireauth with output
+        continue-on-error: true
+        run: |
+          RUST_BACKTRACE=1 cargo test -p monad-raptorcast --test wireauth_raptorcast -- --nocapture --test-threads=1 > /tmp/w.log 2>&1
+          echo RC=$?
+          grep -n -E "panicked|Error|error:|os error|Operation|Permission|io_uring|ENOMEM|EPERM" /tmp/w.log | head -40
+          tail -40 /tmp/w.log
